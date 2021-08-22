@@ -24,16 +24,13 @@ public class GatewayServer {
     private static final int DEFAULT_PORT = 8808;
 
     private int port;
-    private String proxyPath;
 
-    public GatewayServer(String proxyPath) {
+    public GatewayServer() {
         this.port = DEFAULT_PORT;
-        this.proxyPath = proxyPath;
     }
 
-    public GatewayServer(int port, String proxyPath) {
+    public GatewayServer(int port) {
         this.port = port;
-        this.proxyPath = proxyPath;
     }
 
     public void start() {
@@ -44,7 +41,7 @@ public class GatewayServer {
             serverBootstrap.group(bossEventLoopGroup, childEventLoopGroup)
                     .channel(NioServerSocketChannel.class)
 //                    .handler(new LoggingHandler())
-                    .childHandler(new ProxyChildChannelInitializer(this.proxyPath));
+                    .childHandler(new ProxyChildChannelInitializer());
             ChannelFuture future = serverBootstrap.bind(this.port).sync();
             // 等待ServerChannel关闭
             future.channel().closeFuture().sync();

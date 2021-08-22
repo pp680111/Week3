@@ -13,15 +13,16 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.ReferenceCountUtil;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.router.Router;
+import server.router.exception.NoBackendException;
 
-import java.net.URI;
+import java.io.IOException;
 
 /**
  * 同步Http请求转发Handler
@@ -29,10 +30,10 @@ import java.net.URI;
  */
 public class HttpProxyHandler extends ChannelInboundHandlerAdapter {
     private static final Logger LOG = LoggerFactory.getLogger(HttpProxyHandler.class);
-    private String proxyPath;
+    private Router router;
 
-    public HttpProxyHandler(String proxyPath) {
-        this.proxyPath = proxyPath;
+    public HttpProxyHandler(Router router) {
+        this.router = router;
     }
 
     @Override
@@ -53,12 +54,11 @@ public class HttpProxyHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void requestHandler(ChannelHandlerContext ctx, FullHttpRequest request) {
-        String proxyUri = getProxyUri(request.uri());
-        if (StringUtils.isEmpty(proxyUri)) {
-            throw new IllegalArgumentException("Request uri is empty");
-        }
         FullHttpResponse response = null;
         try {
+            String proxyUri = getProxyUri(request);
+            LOG.debug(String.format("proxyUri = %s", proxyUri));
+
             Request proxyRequest = Request.Get(proxyUri);
             request.headers().forEach(header -> {
                 proxyRequest.setHeader(header.getKey(), header.getValue());
@@ -70,11 +70,13 @@ public class HttpProxyHandler extends ChannelInboundHandlerAdapter {
             for (Header h : proxyResponse.getAllHeaders()) {
                 response.headers().set(h.getName(), h.getValue());
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             LOG.error(e.getMessage(), e);
             response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+        } catch (NoBackendException ne) {
+            LOG.error(ne.getMessage(), ne);
+            response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND);
         } finally {
-            // 为啥异步的write需要调用flush才能输出数据，writeBuffer没写满就一直等着不发？
             if (!HttpUtil.isKeepAlive(request)) {
                 ctx.write(response).addListener(ChannelFutureListener.CLOSE);
             } else {
@@ -84,15 +86,7 @@ public class HttpProxyHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private String getProxyUri(String requestUri) {
-        try {
-            if (StringUtils.isNotEmpty(requestUri)) {
-                URI uri = new URI(requestUri);
-                return proxyPath + uri.getPath();
-            }
-        } catch (Exception e) {
-            LOG.error(e.getMessage(), e);
-        }
-        return "";
+    private String getProxyUri(FullHttpRequest request) throws NoBackendException {
+        return this.router.route(request);
     }
 }

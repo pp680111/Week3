@@ -6,25 +6,21 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import server.filter.AddSpecifiedHeaderRequestFilter;
 import server.filter.HttpRequestFilterHandler;
-import server.filter.HttpResponseFilter;
 import server.filter.HttpResponseFilterHandler;
 import server.filter.ProxyEndTimeResponseFilter;
 import server.filter.ProxyStartTimeRequestFilter;
+import server.router.Router;
+import server.router.matcher.PrefixMatcher;
+import server.router.rule.RandomRule;
 
 public class ProxyChildChannelInitializer extends ChannelInitializer<SocketChannel> {
-    private String proxyPath;
-
-    public ProxyChildChannelInitializer(String proxyPath) {
-        this.proxyPath = proxyPath;
-    }
-
     @Override
     protected void initChannel(SocketChannel ch) throws Exception {
         ch.pipeline().addLast(new HttpServerCodec())
                 .addLast(new HttpObjectAggregator(1024 * 1024))
                 .addLast(createHttpRequestFilterHandler())
                 .addLast(createHttpResponseFilterHandler())
-                .addLast(new HttpProxyHandler(this.proxyPath));
+                .addLast(new HttpProxyHandler(new Router(new PrefixMatcher(), new RandomRule())));
 //                .addLast(new AsyncHttpProxyHandler(this.proxyPath));
     }
 
