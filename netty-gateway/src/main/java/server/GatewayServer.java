@@ -2,12 +2,18 @@ package server;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.child.ProxyChildChannelInitializer;
+import server.filter.AddSpecifiedHeaderRequestFilter;
+import server.filter.HttpRequestFilterHandler;
+import server.filter.HttpResponseFilterHandler;
+import server.filter.ProxyEndTimeResponseFilter;
+import server.filter.ProxyStartTimeRequestFilter;
 
 /**
  * 网关Server端
@@ -38,7 +44,7 @@ public class GatewayServer {
             serverBootstrap.group(bossEventLoopGroup, childEventLoopGroup)
                     .channel(NioServerSocketChannel.class)
 //                    .handler(new LoggingHandler())
-                    .childHandler(new ProxyChildChannelInitializer(proxyPath));
+                    .childHandler(new ProxyChildChannelInitializer(this.proxyPath));
             ChannelFuture future = serverBootstrap.bind(this.port).sync();
             // 等待ServerChannel关闭
             future.channel().closeFuture().sync();
